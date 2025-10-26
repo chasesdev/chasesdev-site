@@ -33,6 +33,7 @@ export default function GitHubSection() {
   const [repos, setRepos] = useState<Repository[]>([])
   const [commits, setCommits] = useState<CommitEvent[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const ref = useRef(null)
   const isInView = useInView(ref, { once: true })
 
@@ -43,23 +44,43 @@ export default function GitHubSection() {
         const reposResponse = await fetch(
           "https://api.github.com/users/chasesdev/repos?sort=updated&per_page=6"
         )
+
+        if (!reposResponse.ok) {
+          throw new Error(`GitHub API error: ${reposResponse.status}`)
+        }
+
         const reposData = await reposResponse.json()
-        setRepos(reposData)
+
+        if (Array.isArray(reposData)) {
+          setRepos(reposData)
+        } else {
+          console.error("Invalid repos data:", reposData)
+          setError("Failed to load repositories")
+        }
 
         // Fetch recent events (commits)
         const eventsResponse = await fetch(
           "https://api.github.com/users/chasesdev/events?per_page=10"
         )
+
+        if (!eventsResponse.ok) {
+          throw new Error(`GitHub API error: ${eventsResponse.status}`)
+        }
+
         const eventsData = await eventsResponse.json()
 
         // Filter only push events (commits)
-        const pushEvents = eventsData.filter(
-          (event: CommitEvent) => event.type === "PushEvent"
-        ).slice(0, 5)
-
-        setCommits(pushEvents)
+        if (Array.isArray(eventsData)) {
+          const pushEvents = eventsData.filter(
+            (event: CommitEvent) => event.type === "PushEvent"
+          ).slice(0, 5)
+          setCommits(pushEvents)
+        } else {
+          console.error("Invalid events data:", eventsData)
+        }
       } catch (error) {
         console.error("Error fetching GitHub data:", error)
+        setError(error instanceof Error ? error.message : "Failed to load GitHub data")
       } finally {
         setLoading(false)
       }
@@ -87,6 +108,30 @@ export default function GitHubSection() {
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-center">
             <div className="text-gray-400">Loading GitHub data...</div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (error) {
+    return (
+      <section className="relative py-20 bg-black">
+        <div className="container mx-auto px-4">
+          <div className="flex items-center justify-center">
+            <div className="text-red-400">{error}</div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (repos.length === 0 && commits.length === 0) {
+    return (
+      <section className="relative py-20 bg-black">
+        <div className="container mx-auto px-4">
+          <div className="flex items-center justify-center">
+            <div className="text-gray-400">No GitHub data available</div>
           </div>
         </div>
       </section>
